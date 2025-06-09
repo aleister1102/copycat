@@ -6,6 +6,7 @@ import burp.api.montoya.http.message.requests.HttpRequest;
 import burp.api.montoya.http.message.responses.HttpResponse;
 import burp.api.montoya.ui.contextmenu.ContextMenuEvent;
 import burp.api.montoya.ui.contextmenu.ContextMenuItemsProvider;
+import burp.api.montoya.ui.settings.SettingsPanel;
 
 import javax.swing.*;
 import java.awt.*;
@@ -37,8 +38,15 @@ public class Extension implements BurpExtension {
         // Register context menu provider
         montoyaApi.userInterface().registerContextMenuItemsProvider(new HttpCopierContextMenuProvider());
         
-        // Register settings tab
-        montoyaApi.userInterface().registerSuiteTab("HTTP Copier", createSettingsPanel());
+        // Register as extension settings panel (Montoya API 2025.5+)
+        try {
+            montoyaApi.userInterface().registerSettingsPanel(new HttpCopierSettingsPanel());
+            montoyaApi.logging().logToOutput("Extension settings panel registered successfully in Settings > Extensions");
+        } catch (Exception e) {
+            // Fallback to suite tab if settings panel registration fails
+            montoyaApi.logging().logToOutput("Settings panel registration failed, using suite tab instead: " + e.getMessage());
+            montoyaApi.userInterface().registerSuiteTab("HTTP Copier", createSettingsPanel());
+        }
         
         montoyaApi.logging().logToOutput("HTTP Copier extension loaded successfully!");
     }
@@ -146,6 +154,18 @@ public class Extension implements BurpExtension {
         StringSelection selection = new StringSelection(text);
         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
         clipboard.setContents(selection, null);
+    }
+    
+    private class HttpCopierSettingsPanel implements SettingsPanel {
+        @Override
+        public JComponent uiComponent() {
+            return (JComponent) createSettingsPanel();
+        }
+        
+        @Override
+        public Set<String> keywords() {
+            return Set.of("http", "copier", "headers", "filter", "exclude", "copy", "request", "response");
+        }
     }
     
     private Component createSettingsPanel() {

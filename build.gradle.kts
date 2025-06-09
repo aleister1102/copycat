@@ -7,7 +7,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("net.portswigger.burp.extensions:montoya-api:2025.4")
+    compileOnly("net.portswigger.burp.extensions:montoya-api:2025.5")
 }
 
 tasks.withType<JavaCompile> {
