@@ -1,4 +1,4 @@
-# HTTP Copier - Burp Suite Extension
+# Copycat - Burp Suite Extension
 
 A powerful Burp Suite extension that allows you to copy HTTP requests and responses with customizable header filtering using regular expressions.
 
@@ -21,14 +21,14 @@ A powerful Burp Suite extension that allows you to copy HTTP requests and respon
 1. Clone this repository:
    ```bash
    git clone <repository-url>
-   cd http-copier
+   cd copycat
    ```
 
 2. Build the JAR file:
    - **Windows**: `gradlew jar`
    - **Unix/Linux/macOS**: `./gradlew jar`
 
-3. The compiled JAR will be available at `build/libs/Http Copier.jar`
+3. The compiled JAR will be available at `build/libs/Copycat.jar`
 
 ### Loading into Burp Suite
 
@@ -36,7 +36,7 @@ A powerful Burp Suite extension that allows you to copy HTTP requests and respon
 2. Go to **Extensions > Installed**
 3. Click **Add**
 4. Select **Extension type**: Java
-5. Click **Select file** and choose the `Http Copier.jar` file
+5. Click **Select file** and choose the `Copycat.jar` file
 6. Click **Next** to load the extension
 
 ## Usage
@@ -60,8 +60,8 @@ A powerful Burp Suite extension that allows you to copy HTTP requests and respon
 ### Configuration
 
 Access the settings through:
-- **Settings > Extensions > HTTP Copier** (Burp Suite 2025.5+)
-- **Extensions > HTTP Copier** tab (older versions)
+- **Settings > Extensions > Copycat** (Burp Suite 2025.5+)
+- **Extensions > Copycat** tab (older versions)
 
 #### Default Excluded Headers
 
@@ -125,7 +125,7 @@ By default, the following headers are excluded:
 ### Project Structure
 
 ```
-http-copier/
+copycat/
 ├── src/main/java/
 │   └── Extension.java          # Main extension class
 ├── build.gradle.kts            # Build configuration
@@ -136,8 +136,8 @@ http-copier/
 ### Key Components
 
 - **Extension**: Main class implementing `BurpExtension`
-- **HttpCopierContextMenuProvider**: Provides right-click menu items
-- **HttpCopierSettingsPanel**: Configuration UI panel
+- **CopycatContextMenuProvider**: Provides right-click menu items
+- **CopycatSettingsPanel**: Configuration UI panel
 - **CopyRequestAction/CopyResponseAction**: Action handlers for copying
 
 ### Building and Testing

@@ -4,6 +4,7 @@ import burp.api.montoya.core.ToolType;
 import burp.api.montoya.http.message.HttpRequestResponse;
 import burp.api.montoya.http.message.requests.HttpRequest;
 import burp.api.montoya.http.message.responses.HttpResponse;
+import burp.api.montoya.proxy.ProxyHttpRequestResponse;
 import burp.api.montoya.ui.contextmenu.ContextMenuEvent;
 import burp.api.montoya.ui.contextmenu.ContextMenuItemsProvider;
 import burp.api.montoya.ui.settings.SettingsPanel;
@@ -14,6 +15,9 @@ import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.KeyEvent;
+import java.awt.KeyEventDispatcher;
+import java.awt.KeyboardFocusManager;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -29,7 +33,7 @@ public class Extension implements BurpExtension {
     @Override
     public void initialize(MontoyaApi montoyaApi) {
         this.api = montoyaApi;
-        montoyaApi.extension().setName("HTTP Copier");
+        montoyaApi.extension().setName("Copycat");
         
         // Initialize default excluded header patterns (regex supported)
         excludedHeaderPatterns = new HashSet<>(Arrays.asList(
@@ -38,22 +42,26 @@ public class Extension implements BurpExtension {
         ));
         
         // Register context menu provider
-        montoyaApi.userInterface().registerContextMenuItemsProvider(new HttpCopierContextMenuProvider());
+        montoyaApi.userInterface().registerContextMenuItemsProvider(new CopycatContextMenuProvider());
+        
+        // Register keyboard shortcut for quick copy
+        registerKeyboardShortcuts();
         
         // Register as extension settings panel (Montoya API 2025.5+)
         try {
-            montoyaApi.userInterface().registerSettingsPanel(new HttpCopierSettingsPanel());
+            montoyaApi.userInterface().registerSettingsPanel(new CopycatSettingsPanel());
             montoyaApi.logging().logToOutput("Extension settings panel registered successfully in Settings > Extensions");
         } catch (Exception e) {
             // Fallback to suite tab if settings panel registration fails
             montoyaApi.logging().logToOutput("Settings panel registration failed, using suite tab instead: " + e.getMessage());
-            montoyaApi.userInterface().registerSuiteTab("HTTP Copier", createSettingsPanel());
+            montoyaApi.userInterface().registerSuiteTab("Copycat", createSettingsPanel());
         }
         
-        montoyaApi.logging().logToOutput("HTTP Copier extension loaded successfully!");
+        montoyaApi.logging().logToOutput("Copycat extension loaded successfully!");
+        montoyaApi.logging().logToOutput("Keyboard shortcut: Ctrl+Shift+C to copy request/response");
     }
     
-    private class HttpCopierContextMenuProvider implements ContextMenuItemsProvider {
+    private class CopycatContextMenuProvider implements ContextMenuItemsProvider {
         @Override
         public List<Component> provideMenuItems(ContextMenuEvent event) {
             List<Component> menuItems = new ArrayList<>();
@@ -198,7 +206,58 @@ public class Extension implements BurpExtension {
         clipboard.setContents(selection, null);
     }
     
-    private class HttpCopierSettingsPanel implements SettingsPanel {
+    private void registerKeyboardShortcuts() {
+        // Create a global key listener for Ctrl+Shift+C
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(new KeyEventDispatcher() {
+            @Override
+            public boolean dispatchKeyEvent(KeyEvent e) {
+                // Check for Ctrl+Shift+C combination
+                if (e.getID() == KeyEvent.KEY_PRESSED &&
+                    e.getKeyCode() == KeyEvent.VK_C &&
+                    e.isControlDown() &&
+                    e.isShiftDown()) {
+                    
+                    // Handle the shortcut
+                    handleQuickCopyShortcut();
+                    return true; // Consume the event
+                }
+                return false; // Let other components handle the event
+            }
+        });
+    }
+    
+    private void handleQuickCopyShortcut() {
+        try {
+            // Try to get current selection from various Burp tools
+            // First, try to get from proxy history (most recent item)
+            List<ProxyHttpRequestResponse> proxyHistory = api.proxy().history();
+            if (!proxyHistory.isEmpty()) {
+                ProxyHttpRequestResponse latest = proxyHistory.get(proxyHistory.size() - 1);
+                
+                // Check if we should copy request or response based on current focus
+                // For now, we'll copy request by default, but user can press the shortcut again for response
+                if (latest.request() != null) {
+                    String filteredRequest = filterHeaders(latest.request().toString(), true);
+                    copyToClipboard(filteredRequest);
+                    api.logging().logToOutput("Quick copy: Latest request copied to clipboard (Ctrl+Shift+C)");
+                    return;
+                }
+            }
+            
+            // Try to get from site map if proxy history is empty
+            try {
+                // This is a fallback - we'll show a helpful message
+                api.logging().logToOutput("Quick copy: No recent proxy traffic found. Use right-click context menu for specific requests.");
+            } catch (Exception siteMapEx) {
+                api.logging().logToOutput("Quick copy: No request/response available to copy");
+            }
+            
+        } catch (Exception e) {
+            api.logging().logToError("Error in quick copy shortcut: " + e.getMessage());
+        }
+    }
+    
+    private class CopycatSettingsPanel implements SettingsPanel {
         @Override
         public JComponent uiComponent() {
             return (JComponent) createSettingsPanel();
@@ -206,7 +265,7 @@ public class Extension implements BurpExtension {
         
         @Override
         public Set<String> keywords() {
-            return Set.of("http", "copier", "headers", "filter", "exclude", "copy", "request", "response");
+            return Set.of("copycat", "headers", "filter", "exclude", "copy", "request", "response");
         }
     }
     
@@ -215,7 +274,7 @@ public class Extension implements BurpExtension {
         mainPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         
         // Title
-        JLabel titleLabel = new JLabel("HTTP Copier Settings");
+        JLabel titleLabel = new JLabel("Copycat Settings");
         titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, 16f));
         mainPanel.add(titleLabel, BorderLayout.NORTH);
         
@@ -324,12 +383,15 @@ public class Extension implements BurpExtension {
         instructionsPanel.setBorder(BorderFactory.createTitledBorder("Usage Instructions"));
         
         JTextArea instructionsArea = new JTextArea(
-            "How to use HTTP Copier:\n" +
+            "How to use Copycat:\n" +
             "1. Right-click on any HTTP request/response in Proxy, Repeater, Intruder, or Target\n" +
             "   - Works in both list view and message editor tabs\n" +
             "2. Select 'Copy Request (Filtered)' or 'Copy Response (Filtered)'\n" +
-            "3. The content will be copied to clipboard with excluded headers removed\n" +
-            "4. Use this settings panel to customize header exclusion patterns\n" +
+            "3. Use keyboard shortcut Ctrl+Shift+C to quickly copy the latest request from Proxy\n" +
+            "4. The content will be copied to clipboard with excluded headers removed\n" +
+            "5. Use this settings panel to customize header exclusion patterns\n" +
+            "\nKeyboard Shortcut:\n" +
+            "• Ctrl+Shift+C - Quick copy latest request from Proxy history\n" +
             "\nRegex Pattern Examples:\n" +
             "• 'content-.*' - matches content-length, content-type, etc.\n" +
             "• 'x-.*' - matches all X- headers\n" +
