@@ -1,84 +1,201 @@
-# Extension Template Project
+# HTTP Copier - Burp Suite Extension
 
-This project was created by PortSwigger to help you quickly start developing extensions in Java.
+A powerful Burp Suite extension that allows you to copy HTTP requests and responses with customizable header filtering using regular expressions.
 
-## Contents
-* [Before you start](#before-you-start)
-* [Writing your extension](#writing-your-extension)
-* [Building your extension](#building-your-extension)
-* [Loading the JAR file into Burp](#loading-the-jar-file-into-burp)
-* [Sharing your extension](#sharing-your-extension)
+## Features
 
+- **Smart Header Filtering**: Exclude unwanted headers when copying HTTP messages
+- **Regex Pattern Support**: Use regular expressions for flexible header matching
+- **Context Menu Integration**: Right-click to copy from Proxy, Repeater, Intruder, and Target tools
+- **Configurable Settings**: Easy-to-use settings panel for managing exclusion patterns
+- **Universal Compatibility**: Works in both list view and message editor tabs
 
-## Before you start
+## Installation
 
-Before you begin development, make sure that your project's JDK is set to version "21".
+### Prerequisites
+- Burp Suite Professional or Community Edition
+- Java 21 or higher
 
+### Building from Source
 
-## Writing your extension
+1. Clone this repository:
+   ```bash
+   git clone <repository-url>
+   cd http-copier
+   ```
 
-To begin development, open the [Extension.java](src/main/java/Extension.java) file. It includes an example of setting your extension's name, which you can customize with your own logic.
+2. Build the JAR file:
+   - **Windows**: `gradlew jar`
+   - **Unix/Linux/macOS**: `./gradlew jar`
 
-The template contains the following components for building your extension:
+3. The compiled JAR will be available at `build/libs/Http Copier.jar`
 
-* The `initialize` method. This is the entry point for your extension. It is called when the extension is loaded and receives a [montoyaApi](https://portswigger.github.io/burp-extensions-montoya-api/javadoc/burp/api/montoya/MontoyaApi.html) argument, which provides access to all Montoya API features.
-* The `Extension` class. This implements the BurpExtension interface, so your extension is recognized and loaded by Burp.
+### Loading into Burp Suite
 
-For more information on Montoya API features, see the [JavaDoc](https://portswigger.github.io/burp-extensions-montoya-api/javadoc/burp/api/montoya/MontoyaApi.html).
+1. Open Burp Suite
+2. Go to **Extensions > Installed**
+3. Click **Add**
+4. Select **Extension type**: Java
+5. Click **Select file** and choose the `Http Copier.jar` file
+6. Click **Next** to load the extension
 
-To explore example extensions, visit our [GitHub repository](https://github.com/PortSwigger/burp-extensions-montoya-api-examples).
+## Usage
 
-For more information on creating extensions, see our [documentation](https://portswigger.net/burp/documentation/desktop/extend-burp/extensions/creating).
+### Basic Usage
 
-If you have any questions or need help from the community, join our [Discord channel](https://discord.com/channels/1159124119074381945/1164175825474686996).
+1. Navigate to any HTTP request/response in:
+   - Proxy > HTTP history
+   - Repeater tabs
+   - Intruder > Results
+   - Target > Site map
 
+2. Right-click on the request/response
 
-## Building your extension
+3. Select from the context menu:
+   - **Copy Request (Filtered)** - Copy the HTTP request with headers filtered
+   - **Copy Response (Filtered)** - Copy the HTTP response with headers filtered
 
-When you're ready to test and use your extension, follow these steps to build a JAR file and load it into Burp.
+4. The filtered content is automatically copied to your clipboard
 
-### Building the JAR file
+### Configuration
 
-To build the JAR file, run the following command in the root directory of this project:
+Access the settings through:
+- **Settings > Extensions > HTTP Copier** (Burp Suite 2025.5+)
+- **Extensions > HTTP Copier** tab (older versions)
 
-* For UNIX-based systems: `./gradlew jar`
-* For Windows systems: `gradlew jar`
+#### Default Excluded Headers
 
-If successful, the JAR file is saved to `<project_root_directory>/build/libs/<project_name>.jar`. If the build fails, errors are shown in the console. By default, the project name is `extension-template-project`. You can change this in the [settings.gradle.kts](./settings.gradle.kts) file.
+By default, the following headers are excluded:
+- `content-length`
+- `transfer-encoding`
+- `connection`
+- `host`
+- `accept-encoding`
+- `user-agent`
 
+#### Adding Custom Patterns
 
-## Loading the JAR file into Burp
+1. In the settings panel, enter a header pattern in the text field
+2. Click **Add Pattern** or press Enter
+3. The pattern supports regular expressions for flexible matching
 
-To load the JAR file into Burp:
+#### Regex Pattern Examples
 
-1. In Burp, go to **Extensions > Installed**.
-2. Click **Add**.
-3. Under **Extension details**, click **Select file**.
-4. Select the JAR file you just built, then click **Open**.
-5. [Optional] Under **Standard output** and **Standard error**, choose where to save output and error messages.
-6. Click **Next**. The extension is loaded into Burp.
-7. Review any messages displayed in the **Output** and **Errors** tabs.
-8. Click **Close**.
+| Pattern | Description | Matches |
+|---------|-------------|----------|
+| `content-.*` | All content headers | content-length, content-type, content-encoding |
+| `x-.*` | All X- headers | x-forwarded-for, x-real-ip, x-custom-header |
+| `authorization` | Exact match | authorization (literal) |
+| `(?i)cookie` | Case-insensitive | Cookie, COOKIE, cookie |
+| `sec-.*` | Security headers | sec-fetch-site, sec-ch-ua |
+| `cache-.*` | Cache headers | cache-control, cache-pragma |
 
-Your extension is loaded and listed in the **Burp extensions** table. You can test its behavior and make changes to the code as necessary.
+#### Managing Patterns
 
-### Reloading the JAR file in Burp
+- **Remove Selected**: Select patterns from the list and click to remove them
+- **Reset to Defaults**: Restore the original default exclusion patterns
+- **Pattern Validation**: Invalid regex patterns are treated as literal strings with a warning
 
-If you make changes to the code, you must rebuild the JAR file and reload your extension in Burp for the changes to take effect.
+## Technical Details
 
-To rebuild the JAR file, follow the steps for [building the JAR file](#building-the-jar-file).
+### How It Works
 
-To quickly reload your extension in Burp:
+1. The extension registers context menu items for HTTP tools
+2. When a copy action is triggered, it processes the HTTP message line by line
+3. Header names are matched against configured regex patterns (case-insensitive)
+4. Non-matching headers are included in the copied content
+5. The filtered message is copied to the system clipboard
 
-1. In Burp, go to **Extensions > Installed**.
-2. Hold `Ctrl` or `⌘`, and select the **Loaded** checkbox next to your extension.
+### Regex Processing
 
+- Patterns are compiled using `java.util.regex.Pattern`
+- Matching is performed case-insensitively
+- Invalid regex patterns fall back to literal string matching
+- Pattern validation occurs when adding new patterns
 
-## Sharing your extension
+### Supported Tools
 
-Once you've built your extension, we'd love to see what you've created!
+- **Proxy**: HTTP history and intercept
+- **Repeater**: Request/response tabs
+- **Intruder**: Attack results
+- **Target**: Site map and scope
 
-Share your extension on our [PortSwigger Discord](https://discord.com/channels/1159124119074381945/1164175825474686996) #extensions channel to get feedback, showcase your work, and connect with other developers.
-Then take it to the next level by submitting your extension to the BApp store, making it available to the community of 80,000+ users worldwide.
+## Development
 
-For guidance on the submission process, see [Submitting extensions to the BApp store](https://portswigger.net/burp/documentation/desktop/extend-burp/extensions/creating/bapp-store-submitting-extensions).
+### Project Structure
+
+```
+http-copier/
+├── src/main/java/
+│   └── Extension.java          # Main extension class
+├── build.gradle.kts            # Build configuration
+├── settings.gradle.kts         # Project settings
+└── README.md                   # This file
+```
+
+### Key Components
+
+- **Extension**: Main class implementing `BurpExtension`
+- **HttpCopierContextMenuProvider**: Provides right-click menu items
+- **HttpCopierSettingsPanel**: Configuration UI panel
+- **CopyRequestAction/CopyResponseAction**: Action handlers for copying
+
+### Building and Testing
+
+1. Make code changes
+2. Rebuild: `gradlew jar`
+3. In Burp Suite, go to **Extensions > Installed**
+4. Hold `Ctrl/⌘` and click the **Loaded** checkbox to reload the extension
+
+## Troubleshooting
+
+### Common Issues
+
+**Extension not loading**
+- Ensure Java 21+ is installed
+- Check Burp Suite's extension error logs
+- Verify the JAR file is not corrupted
+
+**Context menu not appearing**
+- Ensure you're right-clicking on HTTP requests/responses
+- Check that the extension is loaded and enabled
+- Verify you're in a supported tool (Proxy, Repeater, etc.)
+
+**Regex patterns not working**
+- Test your regex pattern in a regex validator
+- Check the extension output for pattern validation errors
+- Remember that invalid patterns are treated as literal strings
+
+### Debug Information
+
+The extension logs activity to Burp Suite's output:
+- Pattern additions/removals
+- Copy operations
+- Regex validation errors
+
+Access logs via **Extensions > Installed > [Extension] > Output**
+
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly with Burp Suite
+5. Submit a pull request
+
+## License
+
+This project is open source. Please check the repository for license details.
+
+## Support
+
+For issues, feature requests, or questions:
+- Create an issue in the repository
+- Join the Burp Suite community discussions
+- Check Burp Suite's extension documentation
+
+---
+
+**Note**: This extension is designed for security testing and research purposes. Use responsibly and in accordance with applicable laws and regulations.

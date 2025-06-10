@@ -19,20 +19,22 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 public class Extension implements BurpExtension {
     private MontoyaApi api;
-    private Set<String> excludedHeaders;
+    private Set<String> excludedHeaderPatterns;
     
     @Override
     public void initialize(MontoyaApi montoyaApi) {
         this.api = montoyaApi;
         montoyaApi.extension().setName("HTTP Copier");
         
-        // Initialize default excluded headers
-        excludedHeaders = new HashSet<>(Arrays.asList(
+        // Initialize default excluded header patterns (regex supported)
+        excludedHeaderPatterns = new HashSet<>(Arrays.asList(
             "content-length", "transfer-encoding", "connection", 
-            "host", "accept-encoding", "user-agent"
+            "host", "accept-encoding", "user-agent", "sec-.*"
         ));
         
         // Register context menu provider
@@ -81,12 +83,24 @@ public class Extension implements BurpExtension {
         
         @Override
         public void actionPerformed(ActionEvent e) {
+            HttpRequest request = null;
+            
+            // Try to get request from selected items first (for list view)
             List<HttpRequestResponse> selectedItems = event.selectedRequestResponses();
             if (!selectedItems.isEmpty()) {
-                HttpRequest request = selectedItems.get(0).request();
+                request = selectedItems.get(0).request();
+            }
+            // If no selected items, try to get from message editor
+            else if (event.messageEditorRequestResponse().isPresent()) {
+                request = event.messageEditorRequestResponse().get().requestResponse().request();
+            }
+            
+            if (request != null) {
                 String filteredRequest = filterHeaders(request.toString(), true);
                 copyToClipboard(filteredRequest);
                 api.logging().logToOutput("Request copied to clipboard (headers filtered)");
+            } else {
+                api.logging().logToOutput("No request available to copy");
             }
         }
     }
@@ -100,9 +114,20 @@ public class Extension implements BurpExtension {
         
         @Override
         public void actionPerformed(ActionEvent e) {
+            HttpResponse response = null;
+            
+            // Try to get response from selected items first (for list view)
             List<HttpRequestResponse> selectedItems = event.selectedRequestResponses();
             if (!selectedItems.isEmpty() && selectedItems.get(0).response() != null) {
-                HttpResponse response = selectedItems.get(0).response();
+                response = selectedItems.get(0).response();
+            }
+            // If no selected items, try to get from message editor
+            else if (event.messageEditorRequestResponse().isPresent() && 
+                     event.messageEditorRequestResponse().get().requestResponse().response() != null) {
+                response = event.messageEditorRequestResponse().get().requestResponse().response();
+            }
+            
+            if (response != null) {
                 String filteredResponse = filterHeaders(response.toString(), false);
                 copyToClipboard(filteredResponse);
                 api.logging().logToOutput("Response copied to clipboard (headers filtered)");
@@ -136,9 +161,26 @@ public class Extension implements BurpExtension {
             }
             
             if (inHeaders) {
-                // Check if this header should be excluded
+                // Check if this header should be excluded using regex patterns
                 String headerName = line.split(":")[0].trim().toLowerCase();
-                if (!excludedHeaders.contains(headerName)) {
+                boolean shouldExclude = false;
+                
+                for (String pattern : excludedHeaderPatterns) {
+                    try {
+                        if (Pattern.matches(pattern.toLowerCase(), headerName)) {
+                            shouldExclude = true;
+                            break;
+                        }
+                    } catch (PatternSyntaxException e) {
+                        // If pattern is invalid, treat as literal string
+                        if (pattern.toLowerCase().equals(headerName)) {
+                            shouldExclude = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (!shouldExclude) {
                     filtered.append(line).append("\r\n");
                 }
             } else {
@@ -184,7 +226,8 @@ public class Extension implements BurpExtension {
         // Description
         JTextArea descriptionArea = new JTextArea(
             "Configure which headers to exclude when copying HTTP requests and responses.\n" +
-            "Headers listed below will be filtered out from the copied content."
+            "Header patterns listed below will be filtered out from the copied content.\n" +
+            "Supports regular expressions (regex) for flexible pattern matching."
         );
         descriptionArea.setEditable(false);
         descriptionArea.setOpaque(false);
@@ -193,10 +236,10 @@ public class Extension implements BurpExtension {
         descriptionArea.setBorder(BorderFactory.createEmptyBorder(5, 5, 10, 5));
         settingsPanel.add(descriptionArea, BorderLayout.NORTH);
         
-        // Header list
+        // Header pattern list
         DefaultListModel<String> listModel = new DefaultListModel<>();
-        for (String header : excludedHeaders) {
-            listModel.addElement(header);
+        for (String pattern : excludedHeaderPatterns) {
+            listModel.addElement(pattern);
         }
         JList<String> headerList = new JList<>(listModel);
         headerList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
@@ -210,24 +253,34 @@ public class Extension implements BurpExtension {
         
         // Input panel
         JPanel inputPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JTextField newHeaderField = new JTextField(20);
-        JButton addButton = new JButton("Add Header");
+        JTextField newPatternField = new JTextField(20);
+        JButton addButton = new JButton("Add Pattern");
         
         addButton.addActionListener(e -> {
-            String newHeader = newHeaderField.getText().trim().toLowerCase();
-            if (!newHeader.isEmpty() && !excludedHeaders.contains(newHeader)) {
-                excludedHeaders.add(newHeader);
-                listModel.addElement(newHeader);
-                newHeaderField.setText("");
-                api.logging().logToOutput("Added excluded header: " + newHeader);
+            String newPattern = newPatternField.getText().trim();
+            if (!newPattern.isEmpty() && !excludedHeaderPatterns.contains(newPattern)) {
+                try {
+                    // Test if it's a valid regex pattern
+                    Pattern.compile(newPattern);
+                    excludedHeaderPatterns.add(newPattern);
+                    listModel.addElement(newPattern);
+                    newPatternField.setText("");
+                    api.logging().logToOutput("Added excluded header pattern: " + newPattern);
+                } catch (PatternSyntaxException ex) {
+                    // Still add it but warn user
+                    excludedHeaderPatterns.add(newPattern);
+                    listModel.addElement(newPattern);
+                    newPatternField.setText("");
+                    api.logging().logToOutput("Added header pattern (treated as literal): " + newPattern + " - Invalid regex: " + ex.getMessage());
+                }
             }
         });
         
-        // Allow Enter key to add header
-        newHeaderField.addActionListener(e -> addButton.doClick());
+        // Allow Enter key to add pattern
+        newPatternField.addActionListener(e -> addButton.doClick());
         
-        inputPanel.add(new JLabel("Header name:"));
-        inputPanel.add(newHeaderField);
+        inputPanel.add(new JLabel("Header pattern (regex):"));
+        inputPanel.add(newPatternField);
         inputPanel.add(addButton);
         
         // Button panel
@@ -237,24 +290,24 @@ public class Extension implements BurpExtension {
         
         removeButton.addActionListener(e -> {
             List<String> selected = headerList.getSelectedValuesList();
-            for (String header : selected) {
-                excludedHeaders.remove(header);
-                listModel.removeElement(header);
-                api.logging().logToOutput("Removed excluded header: " + header);
+            for (String pattern : selected) {
+                excludedHeaderPatterns.remove(pattern);
+                listModel.removeElement(pattern);
+                api.logging().logToOutput("Removed excluded header pattern: " + pattern);
             }
         });
         
         resetButton.addActionListener(e -> {
-            excludedHeaders.clear();
-            excludedHeaders.addAll(Arrays.asList(
+            excludedHeaderPatterns.clear();
+            excludedHeaderPatterns.addAll(Arrays.asList(
                 "content-length", "transfer-encoding", "connection", 
                 "host", "accept-encoding", "user-agent"
             ));
             listModel.clear();
-            for (String header : excludedHeaders) {
-                listModel.addElement(header);
+            for (String pattern : excludedHeaderPatterns) {
+                listModel.addElement(pattern);
             }
-            api.logging().logToOutput("Reset excluded headers to defaults");
+            api.logging().logToOutput("Reset excluded header patterns to defaults");
         });
         
         buttonPanel.add(removeButton);
@@ -273,9 +326,15 @@ public class Extension implements BurpExtension {
         JTextArea instructionsArea = new JTextArea(
             "How to use HTTP Copier:\n" +
             "1. Right-click on any HTTP request/response in Proxy, Repeater, Intruder, or Target\n" +
+            "   - Works in both list view and message editor tabs\n" +
             "2. Select 'Copy Request (Filtered)' or 'Copy Response (Filtered)'\n" +
             "3. The content will be copied to clipboard with excluded headers removed\n" +
-            "4. Use this settings panel to customize which headers are excluded"
+            "4. Use this settings panel to customize header exclusion patterns\n" +
+            "\nRegex Pattern Examples:\n" +
+            "• 'content-.*' - matches content-length, content-type, etc.\n" +
+            "• 'x-.*' - matches all X- headers\n" +
+            "• 'authorization' - exact match (literal string)\n" +
+            "• '(?i)COOKIE' - case-insensitive match for 'cookie'"
         );
         instructionsArea.setEditable(false);
         instructionsArea.setOpaque(false);

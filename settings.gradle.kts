@@ -1,1 +1,1 @@
-rootProject.name = "http-copier"
+rootProject.name = "HTTP Copier"
