@@ -33,7 +33,7 @@ public class Extension implements BurpExtension {
     @Override
     public void initialize(MontoyaApi montoyaApi) {
         this.api = montoyaApi;
-        montoyaApi.extension().setName("Copycat");
+        montoyaApi.extension().setName("Copycat - HTTP Message Copier");
         
         // Initialize default excluded header patterns (regex supported)
         excludedHeaderPatterns = new HashSet<>(Arrays.asList(
@@ -274,7 +274,7 @@ public class Extension implements BurpExtension {
         mainPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         
         // Title
-        JLabel titleLabel = new JLabel("Copycat Settings");
+        JLabel titleLabel = new JLabel("Copycat - Settings");
         titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, 16f));
         mainPanel.add(titleLabel, BorderLayout.NORTH);
         

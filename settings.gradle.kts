@@ -1,1 +1,1 @@
-rootProject.name = "Copycat"
+rootProject.name = "Copycat - HTTP Message Copier"
