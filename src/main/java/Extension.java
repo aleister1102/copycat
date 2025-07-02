@@ -56,7 +56,7 @@ public class Extension implements BurpExtension {
         montoyaApi.userInterface().registerContextMenuItemsProvider(new CopycatContextMenuProvider());
 
         // Register keyboard shortcut for quick copy
-        registerKeyboardShortcuts();
+        // registerKeyboardShortcuts(); // Shortcut disabled by user request
 
         // Register as extension settings panel (Montoya API 2025.5+)
         try {
@@ -72,7 +72,8 @@ public class Extension implements BurpExtension {
         }
 
         montoyaApi.logging().logToOutput("Copycat extension loaded successfully!");
-        montoyaApi.logging().logToOutput("Keyboard shortcut: Ctrl+Shift+C to copy request/response");
+        // montoyaApi.logging().logToOutput("Keyboard shortcut: Ctrl+Shift+C to copy
+        // request/response"); // Shortcut disabled by user request
     }
 
     private class CopycatContextMenuProvider implements ContextMenuItemsProvider {
@@ -119,7 +120,7 @@ public class Extension implements BurpExtension {
                 }
 
                 if (request != null) {
-                    String filteredRequest = filterHeaders(request.toString(), true);
+                    String filteredRequest = filterRequest(request);
                     SwingUtilities.invokeLater(() -> { // Update UI on EDT
                         copyToClipboard(filteredRequest);
                         api.logging().logToOutput("Request copied to clipboard (headers filtered)");
@@ -157,7 +158,7 @@ public class Extension implements BurpExtension {
                 }
 
                 if (response != null) {
-                    String filteredResponse = filterHeaders(response.toString(), false);
+                    String filteredResponse = filterResponse(response);
                     SwingUtilities.invokeLater(() -> { // Update UI on EDT
                         copyToClipboard(filteredResponse);
                         api.logging().logToOutput("Response copied to clipboard (headers filtered)");
@@ -173,34 +174,61 @@ public class Extension implements BurpExtension {
 
     // Removed ConfigureHeadersAction class since settings are now in the tab
 
-    private String filterHeaders(String message, boolean isRequest) {
+    private String filterRequest(HttpRequest request) {
         StringBuilder filtered = new StringBuilder();
-        String[] lines = message.split("\\r?\\n");
-        boolean inHeaders = true;
 
-        for (String line : lines) {
-            if (line.trim().isEmpty()) {
-                inHeaders = false; // Headers end at first empty line
-            }
+        // Append request line
+        String rawRequest = request.toString();
+        String requestLine = rawRequest.substring(0, rawRequest.indexOf("\r\n"));
+        filtered.append(requestLine).append("\r\n");
 
-            if (inHeaders) {
-                // Check against precompiled patterns
-                boolean exclude = false;
-                for (Pattern pattern : precompiledPatterns) {
-                    if (pattern.matcher(line).find()) {
-                        exclude = true;
-                        break;
-                    }
+        // Filter and append headers
+        request.headers().forEach(header -> {
+            boolean exclude = false;
+            for (Pattern pattern : precompiledPatterns) {
+                if (pattern.matcher(header.name()).find()) {
+                    exclude = true;
+                    break;
                 }
-
-                if (!exclude) {
-                    filtered.append(line).append("\n");
-                }
-            } else {
-                // Body content
-                filtered.append(line).append("\n");
             }
-        }
+            if (!exclude) {
+                filtered.append(header.toString()).append("\r\n");
+            }
+        });
+
+        // Append empty line separator and body
+        filtered.append("\r\n");
+        filtered.append(request.bodyToString());
+
+        return filtered.toString();
+    }
+
+    private String filterResponse(HttpResponse response) {
+        StringBuilder filtered = new StringBuilder();
+
+        // Append status line
+        String rawResponse = response.toString();
+        String statusLine = rawResponse.substring(0, rawResponse.indexOf("\r\n"));
+        filtered.append(statusLine).append("\r\n");
+
+        // Filter and append headers
+        response.headers().forEach(header -> {
+            boolean exclude = false;
+            for (Pattern pattern : precompiledPatterns) {
+                if (pattern.matcher(header.name()).find()) {
+                    exclude = true;
+                    break;
+                }
+            }
+            if (!exclude) {
+                filtered.append(header.toString()).append("\r\n");
+            }
+        });
+
+        // Append empty line separator and body
+        filtered.append("\r\n");
+        filtered.append(response.bodyToString());
+
         return filtered.toString();
     }
 
@@ -210,58 +238,67 @@ public class Extension implements BurpExtension {
         clipboard.setContents(selection, null);
     }
 
-    private void registerKeyboardShortcuts() {
-        // Create a global key listener for Ctrl+Shift+C
-        KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(new KeyEventDispatcher() {
-            @Override
-            public boolean dispatchKeyEvent(KeyEvent e) {
-                // Check for Ctrl+Shift+C combination
-                if (e.getID() == KeyEvent.KEY_PRESSED &&
-                        e.getKeyCode() == KeyEvent.VK_C &&
-                        e.isControlDown() &&
-                        e.isShiftDown()) {
-
-                    // Handle the shortcut
-                    handleQuickCopyShortcut();
-                    return true; // Consume the event
-                }
-                return false; // Let other components handle the event
-            }
-        });
-    }
-
-    private void handleQuickCopyShortcut() {
-        try {
-            // Try to get current selection from various Burp tools
-            // First, try to get from proxy history (most recent item)
-            List<ProxyHttpRequestResponse> proxyHistory = api.proxy().history();
-            if (!proxyHistory.isEmpty()) {
-                ProxyHttpRequestResponse latest = proxyHistory.get(proxyHistory.size() - 1);
-
-                // Check if we should copy request or response based on current focus
-                // For now, we'll copy request by default, but user can press the shortcut again
-                // for response
-                if (latest.request() != null) {
-                    String filteredRequest = filterHeaders(latest.request().toString(), true);
-                    copyToClipboard(filteredRequest);
-                    api.logging().logToOutput("Quick copy: Latest request copied to clipboard (Ctrl+Shift+C)");
-                    return;
-                }
-            }
-
-            // Try to get from site map if proxy history is empty
-            try {
-                // This is a fallback - we'll show a helpful message
-                api.logging().logToOutput(
-                        "Quick copy: No recent proxy traffic found. Use right-click context menu for specific requests.");
-            } catch (Exception siteMapEx) {
-                api.logging().logToOutput("Quick copy: No request/response available to copy");
-            }
-
-        } catch (Exception e) {
-            api.logging().logToError("Error in quick copy shortcut: " + e.getMessage());
-        }
-    }
+    /*
+     * Shortcut functionality disabled by user request
+     * private void registerKeyboardShortcuts() {
+     * // Create a global key listener for Ctrl+Shift+C
+     * KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(
+     * new KeyEventDispatcher() {
+     * 
+     * @Override
+     * public boolean dispatchKeyEvent(KeyEvent e) {
+     * // Check for Ctrl+Shift+C combination
+     * if (e.getID() == KeyEvent.KEY_PRESSED &&
+     * e.getKeyCode() == KeyEvent.VK_C &&
+     * e.isControlDown() &&
+     * e.isShiftDown()) {
+     * 
+     * // Handle the shortcut
+     * handleQuickCopyShortcut();
+     * return true; // Consume the event
+     * }
+     * return false; // Let other components handle the event
+     * }
+     * });
+     * }
+     * 
+     * private void handleQuickCopyShortcut() {
+     * try {
+     * // Try to get current selection from various Burp tools
+     * // First, try to get from proxy history (most recent item)
+     * List<ProxyHttpRequestResponse> proxyHistory = api.proxy().history();
+     * if (!proxyHistory.isEmpty()) {
+     * ProxyHttpRequestResponse latest = proxyHistory.get(proxyHistory.size() - 1);
+     * 
+     * // Check if we should copy request or response based on current focus
+     * // For now, we'll copy request by default, but user can press the shortcut
+     * again
+     * // for response
+     * if (latest.request() != null) {
+     * String filteredRequest = filterRequest(latest.request());
+     * copyToClipboard(filteredRequest);
+     * api.logging().
+     * logToOutput("Quick copy: Latest request copied to clipboard (Ctrl+Shift+C)");
+     * return;
+     * }
+     * }
+     * 
+     * // Try to get from site map if proxy history is empty
+     * try {
+     * // This is a fallback - we'll show a helpful message
+     * api.logging().logToOutput(
+     * "Quick copy: No recent proxy traffic found. Use right-click context menu for specific requests."
+     * );
+     * } catch (Exception siteMapEx) {
+     * api.logging().logToOutput("Quick copy: No request/response available to copy"
+     * );
+     * }
+     * 
+     * } catch (Exception e) {
+     * api.logging().logToError("Error in quick copy shortcut: " + e.getMessage());
+     * }
+     * }
+     */
 
     private class CopycatSettingsPanel implements SettingsPanel {
         private JPanel mainPanel;
@@ -414,11 +451,8 @@ public class Extension implements BurpExtension {
                             "1. Right-click on any HTTP request/response in Proxy, Repeater, Intruder, or Target\n" +
                             "   - Works in both list view and message editor tabs\n" +
                             "2. Select 'Copy Request (Filtered)' or 'Copy Response (Filtered)'\n" +
-                            "3. Use keyboard shortcut Ctrl+Shift+C to quickly copy the latest request from Proxy\n" +
-                            "4. The content will be copied to clipboard with excluded headers removed\n" +
-                            "5. Use this settings panel to customize header exclusion patterns\n" +
-                            "\nKeyboard Shortcut:\n" +
-                            "• Ctrl+Shift+C - Quick copy latest request from Proxy history\n" +
+                            "3. The content will be copied to clipboard with excluded headers removed\n" +
+                            "4. Use this settings panel to customize header exclusion patterns\n" +
                             "\nRegex Pattern Examples:\n" +
                             "• 'content-.*' - matches content-length, content-type, etc.\n" +
                             "• 'x-.*' - matches all X- headers\n" +
