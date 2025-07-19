@@ -34,6 +34,8 @@ public class CopycatSettingsPanel implements SettingsPanel {
     
     private JPanel mainPanel;
     private JProgressBar progressBar;
+    private JList<String> headerList;
+    private DefaultListModel<String> listModel;
 
     public CopycatSettingsPanel(MontoyaApi api, Set<String> excludedHeaderPatterns, Runnable recompilePatternsCallback) {
         this.api = api;
@@ -96,10 +98,10 @@ public class CopycatSettingsPanel implements SettingsPanel {
     }
     
     private JScrollPane createHeaderListPanel() {
-        DefaultListModel<String> listModel = new DefaultListModel<>();
+        this.listModel = new DefaultListModel<>();
         excludedHeaderPatterns.forEach(listModel::addElement);
         
-        JList<String> headerList = new JList<>(listModel);
+        this.headerList = new JList<>(listModel);
         headerList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         
         JScrollPane scrollPane = new JScrollPane(headerList);
@@ -140,15 +142,10 @@ public class CopycatSettingsPanel implements SettingsPanel {
     
     private void setupControlHandlers(JTextField newPatternField, JButton addButton, 
                                     JButton removeButton, JButton resetButton) {
-        // Get the list model from the scroll pane
-        JScrollPane scrollPane = (JScrollPane) ((JPanel) mainPanel.getComponent(1)).getComponent(1);
-        JList<String> headerList = (JList<String>) scrollPane.getViewport().getView();
-        DefaultListModel<String> listModel = (DefaultListModel<String>) headerList.getModel();
-        
-        addButton.addActionListener(e -> addHeaderPattern(newPatternField, listModel));
+        addButton.addActionListener(e -> addHeaderPattern(newPatternField, this.listModel));
         newPatternField.addActionListener(e -> addButton.doClick());
-        removeButton.addActionListener(e -> removeSelectedPatterns(headerList, listModel));
-        resetButton.addActionListener(e -> resetToDefaults(listModel));
+        removeButton.addActionListener(e -> removeSelectedPatterns(this.headerList, this.listModel));
+        resetButton.addActionListener(e -> resetToDefaults(this.listModel));
     }
     
     private void addHeaderPattern(JTextField field, DefaultListModel<String> listModel) {
