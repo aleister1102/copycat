@@ -21,17 +21,21 @@ public class Extension implements BurpExtension {
 
         initializeExcludedHeaders();
         registerComponents(montoyaApi);
-        
+
         montoyaApi.logging().logToOutput(CopycatConstants.EXTENSION_LOADED);
     }
-    
+
     private void initializeExcludedHeaders() {
         excludedHeaderPatterns = new HashSet<>(Arrays.asList(CopycatConstants.DEFAULT_PATTERNS));
         recompilePatterns();
     }
-    
+
     private void recompilePatterns() {
-        precompiledPatterns = new HashSet<>();
+        if (precompiledPatterns == null) {
+            precompiledPatterns = new HashSet<>();
+        } else {
+            precompiledPatterns.clear();
+        }
         for (String pattern : excludedHeaderPatterns) {
             try {
                 precompiledPatterns.add(Pattern.compile(pattern, Pattern.CASE_INSENSITIVE));
@@ -40,18 +44,19 @@ public class Extension implements BurpExtension {
             }
         }
     }
-    
+
     private void registerComponents(MontoyaApi montoyaApi) {
         montoyaApi.userInterface().registerContextMenuItemsProvider(
-            new CopycatContextMenuProvider(api, precompiledPatterns));
-        
+                new CopycatContextMenuProvider(api, precompiledPatterns));
+
         try {
             montoyaApi.userInterface().registerSettingsPanel(
-                new CopycatSettingsPanel(api, excludedHeaderPatterns, this::recompilePatterns));
+                    new CopycatSettingsPanel(api, excludedHeaderPatterns, this::recompilePatterns));
             montoyaApi.logging().logToOutput(CopycatConstants.SETTINGS_REGISTERED);
         } catch (Exception e) {
             montoyaApi.logging().logToOutput(CopycatConstants.SETTINGS_FALLBACK + e.getMessage());
-            CopycatSettingsPanel settingsPanel = new CopycatSettingsPanel(api, excludedHeaderPatterns, this::recompilePatterns);
+            CopycatSettingsPanel settingsPanel = new CopycatSettingsPanel(api, excludedHeaderPatterns,
+                    this::recompilePatterns);
             montoyaApi.userInterface().registerSuiteTab(CopycatConstants.TAB_NAME, settingsPanel.uiComponent());
         }
     }
