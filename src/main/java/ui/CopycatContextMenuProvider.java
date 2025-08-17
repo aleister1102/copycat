@@ -32,6 +32,9 @@ public class CopycatContextMenuProvider implements ContextMenuItemsProvider {
         List<Component> menuItems = new ArrayList<>();
         menuItems.add(createMenuItem("Copy Request (Filtered)", new CopyAction(event, api, precompiledPatterns, true)));
         menuItems.add(createMenuItem("Copy Response (Filtered)", new CopyAction(event, api, precompiledPatterns, false)));
+        if (event.isFromTool(ToolType.PROXY)) {
+            menuItems.add(createMenuItem("Copy Request+Response (Filtered)", new CopyBothAction(event, api, precompiledPatterns)));
+        }
         return menuItems;
     }
     
